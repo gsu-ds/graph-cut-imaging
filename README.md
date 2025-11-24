@@ -34,17 +34,37 @@ While modern image segmentation often relies on Deep Learning, this project expl
 3.  **Max-Flow Calculation**: The Edmonds-Karp algorithm finds the maximum flow from Source to Sink. The "bottlenecks" in this flow correspond to the edges that should be cut.
 4.  **Segmentation**: The set of nodes reachable from the Source in the residual graph constitutes the foreground object.
 
-## Project Structure
-
+## 🔗 Project Structure
 ```
 .
-├── images/               # Directory containing input images and outputs
-│   ├── dragonite_og.jpeg # Default sample image
-│   └── ...
-├── reports/              # Project reports and presentations
-├── main.py               # Main source code file
-├── requirements.txt      # List of Python dependencies
-└── README.md             # Project documentation
+├── images/                    # Directory containing input images and outputs
+│   ├── graphics/             # Graphics and visualizations
+│   │   └── netflow01.gif
+│   ├── jules_tracker/        # Jules tracking related images
+│   │   ├── final_stages.png
+│   │   ├── jules_request.png
+│   │   └── review_plan.png
+│   ├── output/               # Generated output images
+│   │   ├── test1.png
+│   │   ├── test2.png
+│   │   ├── test3.png
+│   │   └── test4.png
+│   └── dragonite_og.jpeg     # Default sample image
+├── reports/                   # Project reports and presentations
+│   ├── jules-review/
+│   │   └── jules_review.ipynb
+│   └── presentation/
+│       └── everything_is_a_graph.pdf
+├── src/                       # Source code directory
+│   └── (Python source files)
+├── .vscode/                   # VS Code configuration
+├── index.html                 # PDF viewer interface
+├── style.css                  # Styling for PDF viewer
+├── main.py                    # Main Python source code file
+├── requirements.txt           # List of Python dependencies
+├── .gitignore                 # Git ignore rules
+├── LICENSE                    # Project license
+└── README.md                  # Project documentation
 ```
 
 ## Installation
