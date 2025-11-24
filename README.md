@@ -77,11 +77,11 @@ You can modify `main.py` to change parameters:
     ```python
     processor = ImageGraph('path/to/your/image.jpg', width=40)
     ```
-*   **Resolution**: Adjust the `width` parameter. Higher values give better detail but increase computation time significantly ($O(V E^2)$).
+*   **Resolution**: Adjust the `width` parameter. Higher values give better detail but increase computation time significantly (O(V E^2)).
 *   **Seeds**: You can adjust the `seed_radius` or the logic for placing source/sink seeds in the `build_t_links` method to suit different images.
 
 ## Author
 
 **Joshua Piña**
-Computer Science Department, Georgia State University
+<br>Computer Science Department, Georgia State University <br>
 *Data Science Senior | Program Manager | U.S Army Veteran*
