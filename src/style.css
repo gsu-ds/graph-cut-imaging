@@ -1,0 +1,69 @@
+:root {
+  --bg-color: #0f172a;
+  --text-color: #f8fafc;
+  --primary-color: #38bdf8;
+  --secondary-color: #1e293b;
+  --accent-color: #7dd3fc;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+#app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+h1 {
+  color: var(--primary-color);
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+header p {
+  color: var(--accent-color);
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.viewer-container {
+  background-color: var(--secondary-color);
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  height: 75vh;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+iframe {
+  border: none;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  background-color: white; /* Ensure PDF background is white if transparent */
+}
+
+footer {
+  text-align: center;
+  margin-top: auto;
+  padding-top: 2rem;
+  padding-bottom: 1rem;
+  opacity: 0.6;
+  font-size: 0.9rem;
+}
