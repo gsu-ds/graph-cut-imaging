@@ -1,140 +1,43 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.traceback import install
 from collections import deque
 
-"""
-Image Segmentation via Max-Flow Min-Cut (Edmonds-Karp Algorithm)
 
-USAGE:
-    # Simple auto-mode (RECOMMENDED):
-    processor = ImageGraph('image.jpg')
-    processor.build_n_links(mode='exponential', sigma=20.0)
-    processor.build_t_links()
-    processor.calculate_max_flow()
-    processor.segment_image()
-    
-    # With manual control:
-    processor = ImageGraph('image.jpg', width=100)
-    processor.build_n_links(mode='threshold', threshold=30)
-    # ... rest of code
-"""
-
-# The Rich Package allows for pretty printing, traceback for error handling and a console to display output
 install()
 console = Console()
 
-
-def get_smart_width(image_path):
-    """
-    Automatically determine optimal width based on original image size.
-    
-    This function analyzes the input image dimensions and recommends an appropriate
-    width that balances segmentation quality with computation time.
-    
-    Args:
-        image_path (str): Path to the input image
-    
-    Returns:
-        int: Recommended width for resizing
-    """
-    try:
-        img = cv2.imread(image_path)
-        if img is None:
-            console.print("[yellow]Warning: Could not load image, using default width=100[/yellow]")
-            return 100
-        
-        h, w = img.shape[:2]
-        total_pixels = h * w
-        
-        console.print(f"[cyan]Original image size: {w}×{h} ({total_pixels:,} pixels)[/cyan]")
-        
-        # Adaptive sizing based on original image size
-        if total_pixels < 100000:  # Small image (< 100k pixels, e.g., 316×316)
-            recommended = min(w, 80)  # Don't upscale small images
-            reason = "Small image - using high relative resolution"
-        elif total_pixels < 500000:  # Medium image (< 500k pixels, e.g., 707×707)
-            recommended = 100
-            reason = "Medium image - balanced resolution"
-        elif total_pixels < 2000000:  # Large image (< 2M pixels, e.g., 1414×1414)
-            recommended = 120
-            reason = "Large image - good quality with reasonable speed"
-        else:  # Very large image (≥ 2M pixels, e.g., HD photos)
-            recommended = 150
-            reason = "Very large image - high quality mode"
-        
-        # Calculate resulting dimensions
-        resulting_height = int(recommended * h / w)
-        resulting_pixels = recommended * resulting_height
-        reduction = (1 - resulting_pixels / total_pixels) * 100
-        
-        # Estimate computation time
-        if resulting_pixels < 2000:
-            time_est = "< 5 seconds"
-        elif resulting_pixels < 5000:
-            time_est = "5-15 seconds"
-        elif resulting_pixels < 10000:
-            time_est = "15-60 seconds"
-        else:
-            time_est = "1-5 minutes"
-        
-        # Print recommendation
-        console.print(f"[green]Recommended width: {recommended} pixels[/green]")
-        console.print(f"  → Reason: {reason}")
-        console.print(f"  → Resulting size: {recommended}×{resulting_height} ({resulting_pixels:,} pixels)")
-        console.print(f"  → Size reduction: {reduction:.1f}%")
-        console.print(f"  → Estimated time: {time_est}")
-        
-        return recommended
-    
-    except Exception as e:
-        console.print(f"[red]Error in get_smart_width: {e}[/red]")
-        return 100  # Safe fallback
-
-
 class ImageGraph:
     """
-    A class to represent an image as a graph for segmentation using the Max-Flow Min-Cut algorithm.
-    
+    This class to represent an image as a graph for segmentation using the Max-Flow Min-Cut algorithm.
+
     This class converts an image into a graph where pixels are nodes and edges represent similarity.
     It then applies the Edmonds-Karp algorithm to find the max flow and min cut, effectively
     segmenting the image into foreground and background.
     """
 
-    def __init__(self, image_path, width=None):
+    def __init__(self, image_path, width=20):
         """
         Initializes the ImageGraph by loading the image, resizing it, and setting up the graph structure.
 
         Args:
             image_path (str): The file path to the input image.
-            width (int, optional): The target width to resize the image to. If None, auto-detects optimal size.
-                                  The height is adjusted to maintain aspect ratio. Defaults to None.
+            width (int, optional): The target width to resize the image to. The height is adjusted to maintain aspect ratio. Defaults to 20.
 
         Raises:
             ValueError: If the image cannot be loaded from the specified path.
         """
         self.console = console
 
-        # 1. Load image first to check size
+        # 1. Load and Resize
         self.original_img = cv2.imread(image_path)
         if self.original_img is None:
             raise ValueError(f"Could not load image at {image_path}")
-        
-        # Auto-detect width if not specified
-        if width is None:
-            width = get_smart_width(image_path)
-            self.console.print(f"[yellow]Auto-detected optimal width: {width}[/yellow]")
-        else:
-            # Show original size even with manual width
-            h, w = self.original_img.shape[:2]
-            self.console.print(f"[cyan]Original image size: {w}×{h}[/cyan]")
-            self.console.print(f"[yellow]Using manual width: {width}[/yellow]")
 
-        # 2. Resize maintaining aspect ratio
+        # Calculate height to maintain aspect ratio
         r = width / self.original_img.shape[1]
         dim = (width, int(self.original_img.shape[0] * r))
         self.img = cv2.resize(self.original_img, dim, interpolation=cv2.INTER_AREA)
@@ -143,7 +46,7 @@ class ImageGraph:
         self.h, self.w = self.gray.shape
         self.num_pixels = self.h * self.w
 
-        # 3. Graph Setup
+        # 2. Graph Setup
         # Node IDs: 0 to num_pixels-1 are pixels.
         # Last two are Source (S) and Sink (T).
         self.SOURCE = self.num_pixels
@@ -187,36 +90,30 @@ class ImageGraph:
         """
         return row * self.w + col
 
-    def build_n_links(self, mode='exponential', sigma=20.0, threshold=30):
+    def build_n_links(self):
         """
         Constructs the n-links (neighbor links) between adjacent pixels in the graph.
 
         This method connects each pixel to its right and bottom neighbors. The capacity (weight)
-        of the link is determined by the similarity in pixel intensity.
+        of the link is determined by the similarity in pixel intensity. If the difference
+        is below a threshold, a strong bond is created; otherwise, a weak bond is created.
 
-        Args:
-            mode (str): Weight calculation mode. Options:
-                       'exponential' - Smooth Gaussian decay (RECOMMENDED, standard in literature)
-                       'threshold' - Binary threshold (simple but harsh)
-            sigma (float): Sensitivity parameter for exponential mode (typically 10-40)
-            threshold (int): Threshold value for threshold mode (typically 20-40)
-
-        Strategy (Exponential Mode - RECOMMENDED):
-            - weight = 1000 × exp(-diff² / (2σ²))
-            - Creates smooth transitions instead of hard cutoffs
-            - Standard approach in graph cut literature
-        
-        Strategy (Threshold Mode):
-            - If difference < threshold, weight = 1000 (STRONG_BOND)
-            - Else, weight = 1 (WEAK_BOND)
-            - Simpler but creates artifacts
+        Strategy:
+            - Calculate absolute difference in pixel intensity.
+            - If difference < 30 (DIFF_THRESHOLD), weight = 1000 (STRONG_BOND).
+            - Else, weight = 1 (WEAK_BOND).
         """
-        if mode == 'exponential':
-            self.console.print(f"[bold yellow]Building n-links (Exponential Decay Mode, σ={sigma})...[/bold yellow]")
-        else:
-            self.console.print(f"[bold yellow]Building n-links (Threshold Mode, threshold={threshold})...[/bold yellow]")
+        self.console.print("[bold yellow]Building n-links (Threshold Mode)...[/bold yellow]")
 
         connections = 0
+
+        # Sensitivity Threshold
+        # Pixels with difference < 30 are considered "The Same Object"
+        # Pixels with difference > 30 are considered "Edges"
+        DIFF_THRESHOLD = 30
+
+        STRONG_BOND = 1000  # Hard to cut
+        WEAK_BOND = 1       # Easy to cut
 
         for r in range(self.h):
             for c in range(self.w):
@@ -233,23 +130,11 @@ class ImageGraph:
                     val_v = int(self.gray[nr, nc])
                     diff = abs(val_u - val_v)
 
-                    if mode == 'exponential':
-                        # Exponential decay: weight = K × exp(-diff² / (2σ²))
-                        # This is a Gaussian similarity function - standard in CV literature
-                        weight = int(1000 * np.exp(-(diff**2) / (2 * sigma**2)))
-                        # Ensure minimum weight of 1
-                        weight = max(1, weight)
+                    # The Logic Switch
+                    if diff < DIFF_THRESHOLD:
+                        weight = STRONG_BOND
                     else:
-                        # Binary threshold (original approach)
-                        # Pixels with difference < threshold are considered "The Same Object"
-                        # Pixels with difference ≥ threshold are considered "Edges"
-                        STRONG_BOND = 1000  # Hard to cut
-                        WEAK_BOND = 1       # Easy to cut
-                        
-                        if diff < threshold:
-                            weight = STRONG_BOND
-                        else:
-                            weight = WEAK_BOND
+                        weight = WEAK_BOND
 
                     self.capacity[u, v] = weight
                     self.capacity[v, u] = weight
@@ -424,37 +309,15 @@ class ImageGraph:
 
         self.console.print(f"[green]Success![/green] Linked {source_links} Center seeds and {sink_links} Border seeds.")
 
-
 # --- EXECUTION ---
 if __name__ == "__main__":
-    
-    console.print("\n[bold cyan]═══════════════════════════════════════════════════════════[/bold cyan]")
-    console.print("[bold cyan]  Image Segmentation via Max-Flow Min-Cut (Edmonds-Karp)  [/bold cyan]")
-    console.print("[bold cyan]═══════════════════════════════════════════════════════════[/bold cyan]\n")
 
-    # 1. Initialize with AUTO-DETECTION
-    # The width parameter is now optional - it will auto-detect optimal size!
-    # You can also manually specify: ImageGraph('path', width=100)
-    
-    image_path = 'src/images/dragonite_og.jpeg'
-    
-    # Option A: Auto-detect optimal width (RECOMMENDED)
-    processor = ImageGraph(image_path)
-    
-    # Option B: Manually specify width (if you want control)
-    # processor = ImageGraph(image_path, width=100)
+    # 1. Initialize (Try width=30 for a better view)
+    # Using 'images/dragonite_og.jpeg' as the default image path
+    processor = ImageGraph('../src/images/dragonite_og.jpeg', width=40)
 
     # 2. Build Graph
-    # Option A: Use exponential decay (RECOMMENDED - smoother results)
-    processor.build_n_links(mode='exponential', sigma=20.0)
-    
-    # Option B: Use binary threshold (original approach)
-    # processor.build_n_links(mode='threshold', threshold=30)
-    
-    # Option C: Experiment with different sigma values
-    # processor.build_n_links(mode='exponential', sigma=10)  # More sensitive
-    # processor.build_n_links(mode='exponential', sigma=30)  # Less sensitive
-    
+    processor.build_n_links()
     processor.build_t_links()
 
     # 3. Run Algorithm
@@ -462,5 +325,3 @@ if __name__ == "__main__":
 
     # 4. View Result
     processor.segment_image()
-    
-    console.print("\n[bold green]✓ Segmentation complete![/bold green]\n")
